@@ -1,0 +1,229 @@
+#!/bin/bash
+
+# Author Sebastian Sasu <sebi@nologin.ro>
+
+usage() {
+  echo ""
+  echo "Usage : sentry.sh start|stop|restart|status|pull|upgrade|cleanup|backup"
+  echo "sentry-exec help for more detailed explanations"
+  echo ""
+}
+
+help() {
+  echo ""
+  echo "Containers that this script manages are Redis, PostgreSQL and Sentry (sentry, workers, cron)"
+  echo "Detailed command arguments help: "
+  echo ""
+  echo "start:    Starts all sentry containers"
+  echo "stop:     Stops all sentry containers"
+  echo "restart:  Restarts all containers"
+  echo "status:   Shows status of containers, a.k.a. docker stats"
+  echo "pull:     Pull latest images of containers"
+  echo "upgrade:  Performs upgrade of sentry"
+  echo "cleanup:  Delete a portion of trailing data based on creation date. Defaults to 30 days"
+  echo "backup:   Backup the postgresql database"
+  echo ""
+}
+
+# Redis
+start_redis() {
+  echo -e "Starting Redis container..."
+  docker run -d --name redis --restart=always --network=sentry_net \
+    --sysctl=net.core.somaxconn=65535 \
+    -v $(etcdctl get /sentry/REDIS_DIR):/data \
+    redis:alpine; sleep 15
+}
+
+stop_redis() {
+  echo -e "Stopping Redis..."
+  docker stop -t 30 redis; docker rm -f redis
+}
+
+# Postgres
+start_pg() {
+  echo -e "Starting PostgreSQL container..."
+  docker run -d --name postgres --restart=always --network=sentry_net \
+    -e POSTGRES_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
+    -e POSTGRES_USER=$(etcdctl get /sentry/POSTGRES_USER) \
+    -e PGDATA=$(etcdctl get /sentry/PGDATA) \
+    -v $(etcdctl get /sentry/PG_DIR):/var/lib/postgresql/data/pgdata \
+    postgres; sleep 15
+}
+
+stop_pg() {
+  echo -e "Stopping postgresql..."
+  docker stop -t 30 postgres; docker rm -f postgres
+}
+
+### Sentry
+
+# Sentry
+start_sentry() {
+  echo -e "Starting sentry containers..."
+  docker run -d --restart=always --network=sentry_net \
+    --name sentry \
+    -e VIRTUAL_HOST=$(etcdctl get /sentry/VIRTUAL_HOST) \
+    -e LETSENCRYPT_HOST=$(etcdctl get /sentry/LETSENCRYPT_HOST) \
+    -e LETSENCRYPT_EMAIL=$(etcdctl get /sentry/LETSENCRYPT_EMAIL) \
+    -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
+    -e SENTRY_SINGLE_ORGANIZATION=$(etcdctl get /sentry/SENTRY_SINGLE_ORGANIZATION) \
+    -e SENTRY_SERVER_EMAIL=$(etcdctl get /sentry/SENTRY_SERVER_EMAIL) \
+    -e SENTRY_EMAIL_HOST=$(etcdctl get /sentry/SENTRY_EMAIL_HOST) \
+    -e SENTRY_EMAIL_PASSWORD=$(etcdctl get /sentry/SENTRY_EMAIL_PASSWORD) \
+    -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
+    -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
+    -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
+    -e SENTRY_POSTGRES_HOST=postgres \
+    -e SENTRY_REDIS_HOST=redis \
+    -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
+    -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
+    -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
+    sentry; sleep 5
+}
+
+stop_sentry() {
+  echo -e "Stopping sentry..."
+  docker stop -t 15 sentry; docker rm -f sentry
+}
+
+# Sentry CRON & WORKERS
+start_sentry_cron_worker() {
+  echo "Starting sentry cron & workers..."
+# Start sentry cron
+  docker run -d --name sentry-cron --restart=always  --network=sentry_net \
+    -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
+    -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
+    -e SENTRY_SINGLE_ORGANIZATION=$(etcdctl get /sentry/SENTRY_SINGLE_ORGANIZATION) \
+    -e SENTRY_SERVER_EMAIL=$(etcdctl get /sentry/SENTRY_SERVER_EMAIL) \
+    -e SENTRY_EMAIL_HOST=$(etcdctl get /sentry/SENTRY_EMAIL_HOST) \
+    -e SENTRY_EMAIL_PASSWORD=$(etcdctl get /sentry/SENTRY_EMAIL_PASSWORD) \
+    -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
+    -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
+    -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
+    -e SENTRY_POSTGRES_HOST=postgres \
+    -e SENTRY_REDIS_HOST=redis \
+    -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
+    -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
+    sentry run cron; sleep 5
+
+# Start sentry worker(s)
+  docker run -d --name sentry-worker-1 --restart=always --network=sentry_net \
+    -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
+    -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
+    -e SENTRY_SINGLE_ORGANIZATION=$(etcdctl get /sentry/SENTRY_SINGLE_ORGANIZATION) \
+    -e SENTRY_SERVER_EMAIL=$(etcdctl get /sentry/SENTRY_SERVER_EMAIL) \
+    -e SENTRY_EMAIL_HOST=$(etcdctl get /sentry/SENTRY_EMAIL_HOST) \
+    -e SENTRY_EMAIL_PASSWORD=$(etcdctl get /sentry/SENTRY_EMAIL_PASSWORD) \
+    -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
+    -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
+    -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
+    -e SENTRY_POSTGRES_HOST=postgres \
+    -e SENTRY_REDIS_HOST=redis \
+    -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
+    -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
+    sentry run worker
+}
+
+stop_sentry_cron_worker() {
+  echo "Stopping sentry cron & workers..."
+  echo -e "Stopping sentry..."
+  docker stop -t 15 sentry-cron; docker rm -f sentry-cron
+  # In case we have multiple workers make sure we stop/remove all
+  docker ps -a --filter "name=sentry-worker"| awk '{if(NR>1)print}'|awk '{print $NF}'|xargs docker stop
+  docker ps -a --filter "name=sentry-worker"| awk '{if(NR>1)print}'|awk '{print $NF}'|xargs docker rm -f
+}
+
+full_start() {
+  start_redis
+  start_pg
+  start_sentry
+  start_sentry_cron_worker
+}
+
+full_stop() {
+  stop_pg
+  stop_sentry
+  stop_sentry_cron_worker
+  stop_redis
+}
+
+restart() {
+  full_stop
+  full_start
+}
+
+pull() {
+  echo "Pulling postgres..."
+  docker pull postgres
+  echo "Pulling redis..."
+  docker pull redis
+  echo "Pulling sentry..."
+  docker pull sentry
+}
+
+status() {
+  docker ps | grep -v NAMES | awk '{ print $NF }' | xargs docker stats
+}
+
+upgrade() {
+  echo "Upgrading sentry..."
+  pull
+  full_stop
+  start_redis
+  start_pg
+  docker run -it --rm \
+    -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
+    -e SENTRY_POSTGRES_HOST=postgres \
+    -e SENTRY_REDIS_HOST=redis \
+    sentry upgrade; sleep 5
+  start_sentry
+  start_sentry_cron_worker
+}
+
+cleanup() {
+  docker run -it --rm \
+    -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
+    -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
+    -e SENTRY_POSTGRES_HOST=postgres \
+    -e SENTRY_REDIS_HOST=redis \
+    sentry cleanup -q --days 60 --concurrency 4
+}
+
+backup() {
+  docker exec -it postgres bash -c 'pg_dump -U sentry sentry > /var/lib/postgresql/data/pgdata/sentry.sql'
+}
+
+case "$1" in
+  "")
+  usage
+  exit 0
+  ;;
+  "help")
+  help
+  exit 0
+  ;;
+  "start")
+  full_start
+  ;;
+  "stop")
+  full_stop
+  ;;
+  "restart")
+  restart
+  ;;
+  "status")
+  status
+  ;;
+  "pull")
+  pull
+  ;;
+  "upgrade")
+  upgrade
+  ;;
+  "cleanup")
+  cleanup
+  ;;
+  "backup")
+  backup
+  ;;
+esac

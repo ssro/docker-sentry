@@ -1,0 +1,134 @@
+#!/bin/bash
+
+# Sentry on docker (CentOS) fully automated install script.
+# Author Sebastian Sasu <sebi@nologin.ro>
+
+# Docker engine and kernel 4.x must be installed on the host.
+# Please refer to scripts/docker-install.sh script and
+# scripts/centos-elrepo.sh
+
+# Install etcd
+sudo yum -y install git etcd3 \
+  && sudo systemctl enable etcd \
+  && sudo systemctl start etcd || exit 0
+
+sudo mkdir -p /opt/sentry/{postgres,redis,sentry}
+sudo mkdir -p /opt/nginx/certs
+
+# Set environment variables for your containers in etcd
+etcdctl set /sentry/POSTGRES_PASSWORD supersecret
+etcdctl set /sentry/POSTGRES_USER sentry
+etcdctl set /sentry/PGDATA /var/lib/postgresql/data/pgdata
+etcdctl set /sentry/PG_DIR /opt/sentry/postgres
+etcdctl set /sentry/REDIS_DIR /opt/sentry/redis
+etcdctl set /sentry/SENTRY_DIR /opt/sentry/sentry
+etcdctl set /sentry/SENTRY_SINGLE_ORGANIZATION False
+etcdctl set /sentry/SENTRY_SERVER_EMAIL sentry@example.com
+etcdctl set /sentry/SENTRY_EMAIL_HOST smtp.example.com
+etcdctl set /sentry/SENTRY_EMAIL_PASSWORD super-secret
+etcdctl set /sentry/SENTRY_EMAIL_USER mailuser
+etcdctl set /sentry/SENTRY_EMAIL_PORT 587
+etcdctl set /sentry/SENTRY_EMAIL_USE_TLS True
+etcdctl set /sentry/VIRTUAL_HOST sentry.example.com
+etcdctl set /sentry/LETSENCRYPT_HOST sentry.example.com
+etcdctl set /sentry/LETSENCRYPT_EMAIL example@example.com
+etcdctl set /nginx/WORKDIR /opt/nginx
+
+# Create an isolated docker network (bridge) It will automatically perform DNS resolution
+docker network create -d bridge --subnet 172.25.0.0/16 sentry_net
+
+# Start redis and postgresql containers
+docker run -d --name redis --restart=always --network=sentry_net \
+  --sysctl=net.core.somaxconn=65535 \
+  -v $(etcdctl get /sentry/REDIS_DIR):/data \
+  redis:alpine
+
+docker run -d --name postgres --restart=always --network=sentry_net \
+  -e POSTGRES_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
+  -e POSTGRES_USER=$(etcdctl get /sentry/POSTGRES_USER) \
+  -e PGDATA=$(etcdctl get /sentry/PGDATA) \
+  -v $(etcdctl get /sentry/PG_DIR):/var/lib/postgresql/data/pgdata \
+  postgres
+
+sleep 10
+
+# Generate sentry key & add it to etcd
+etcdctl set /sentry/SENTRY_SECRET_KEY "$(docker run --rm sentry config generate-secret-key)"
+
+# Upgrade database
+docker run -it --rm --network=sentry_net \
+  -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
+  -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
+  -e SENTRY_POSTGRES_HOST=postgres \
+  -e SENTRY_REDIS_HOST=redis \
+  -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
+  -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
+  sentry upgrade
+
+# Create user in case you didn't on the previous step
+# docker run -it --rm \
+#   -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
+#   -e SENTRY_POSTGRES_HOST=postgres \
+#   -e SENTRY_REDIS_HOST=redis \
+#   sentry createuser
+
+# Start sentry
+docker run -d --restart=always --network=sentry_net \
+  --name sentry \
+  -e VIRTUAL_HOST=$(etcdctl get /sentry/VIRTUAL_HOST) \
+  -e LETSENCRYPT_HOST=$(etcdctl get /sentry/LETSENCRYPT_HOST) \
+  -e LETSENCRYPT_EMAIL=$(etcdctl get /sentry/LETSENCRYPT_EMAIL) \
+  -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
+  -e SENTRY_SINGLE_ORGANIZATION=$(etcdctl get /sentry/SENTRY_SINGLE_ORGANIZATION) \
+  -e SENTRY_SERVER_EMAIL=$(etcdctl get /sentry/SENTRY_SERVER_EMAIL) \
+  -e SENTRY_EMAIL_HOST=$(etcdctl get /sentry/SENTRY_EMAIL_HOST) \
+  -e SENTRY_EMAIL_PASSWORD=$(etcdctl get /sentry/SENTRY_EMAIL_PASSWORD) \
+  -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
+  -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
+  -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
+  -e SENTRY_POSTGRES_HOST=postgres \
+  -e SENTRY_REDIS_HOST=redis \
+  -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
+  -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
+  -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
+  sentry
+
+# Start sentry cron
+docker run -d --name sentry-cron --restart=always  --network=sentry_net \
+  -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
+  -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
+  -e SENTRY_SINGLE_ORGANIZATION=$(etcdctl get /sentry/SENTRY_SINGLE_ORGANIZATION) \
+  -e SENTRY_SERVER_EMAIL=$(etcdctl get /sentry/SENTRY_SERVER_EMAIL) \
+  -e SENTRY_EMAIL_HOST=$(etcdctl get /sentry/SENTRY_EMAIL_HOST) \
+  -e SENTRY_EMAIL_PASSWORD=$(etcdctl get /sentry/SENTRY_EMAIL_PASSWORD) \
+  -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
+  -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
+  -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
+  -e SENTRY_POSTGRES_HOST=postgres \
+  -e SENTRY_REDIS_HOST=redis \
+  -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
+  -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
+  sentry run cron
+
+
+# Start worker (you can start as many workers as you want, just give them different names (--name))
+docker run -d --name sentry-worker-1 --restart=always --network=sentry_net \
+  -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
+  -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
+  -e SENTRY_SINGLE_ORGANIZATION=$(etcdctl get /sentry/SENTRY_SINGLE_ORGANIZATION) \
+  -e SENTRY_SERVER_EMAIL=$(etcdctl get /sentry/SENTRY_SERVER_EMAIL) \
+  -e SENTRY_EMAIL_HOST=$(etcdctl get /sentry/SENTRY_EMAIL_HOST) \
+  -e SENTRY_EMAIL_PASSWORD=$(etcdctl get /sentry/SENTRY_EMAIL_PASSWORD) \
+  -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
+  -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
+  -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
+  -e SENTRY_POSTGRES_HOST=postgres \
+  -e SENTRY_REDIS_HOST=redis \
+  -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
+  -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
+  sentry run worker
+
+echo -e "Installing nginx reverse proxy with SSL support...\n"
+sleep 10
+
+$HOME/docker-sentry/nginx-proxy.sh
