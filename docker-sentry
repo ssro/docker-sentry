@@ -8,9 +8,78 @@
 # scripts/centos-elrepo.sh
 
 # Install etcd
-sudo yum -y install git etcd3 \
-  && sudo systemctl enable etcd \
-  && sudo systemctl start etcd || exit 0
+
+centos_etcd() {
+  sudo yum -y install git etcd3 \
+    && sudo systemctl enable etcd \
+    && sudo systemctl start etcd || exit 0
+}
+
+ubuntu_etcd() {
+  sudo apt-get -y update \
+    && sudo apt-get -y install etcd \
+    && sudo systemctl enable etcd \
+    && sudo systemctl start etcd
+}
+
+debian_etcd() {
+  wget https://github.com/coreos/etcd/releases/download/v2.3.8/etcd-v2.3.8-linux-amd64.tar.gz \
+    && tar zxvf etcd-v2.3.8-linux-amd64.tar.gz && cd etcd-v2.3.8-linux-amd64 \
+    && sudo bash -c 'cp etcd* /usr/bin/' && cd .. \
+    && rm -rf etcd-v2.3.8*
+
+  sudo bash -c 'cat <<EOF > /etc/systemd/system/etcd.service
+  [Unit]
+  Description=etcd - highly-available key value store
+  Documentation=https://github.com/coreos/etcd
+  Documentation=man:etcd
+  After=network.target
+  Wants=network-online.target
+
+  [Service]
+  Environment=DAEMON_ARGS=
+  Environment=ETCD_NAME=%H
+  Environment=ETCD_DATA_DIR=/var/lib/etcd/default
+  EnvironmentFile=-/etc/default/%p
+  Type=notify
+  User=etcd
+  PermissionsStartOnly=true
+  #ExecStart=/bin/sh -c "GOMAXPROCS=$(nproc) /usr/bin/etcd $DAEMON_ARGS"
+  ExecStart=/usr/bin/etcd $DAEMON_ARGS
+  Restart=on-abnormal
+  #RestartSec=10s
+  LimitNOFILE=65536
+
+  [Install]
+  WantedBy=multi-user.target
+  Alias=etcd2.service
+
+EOF'
+
+# Enable etcd, add user for it and start it
+sudo systemctl enable etcd
+sudo adduser --system --home /var/lib/etcd --shell /bin/false --disabled-password --disabled-login etcd
+sudo systemctl start etcd
+}
+
+echo -e "\n"
+echo -e "My Operating System is \033[1m(c)\033[0mentOS/\033[1m(d)\033[0mebian/\033[1m(u)\033[0mbuntu: \n"
+
+read -r os
+
+if [[ "$os" == "c" ]]; then
+  echo -e "\033[1mInstalling ETCD on CentOS...\033[0m\n"
+  centos_etcd
+elif [[ "$os" == "d" ]]; then
+    echo -e "\033[1mInstalling ETCD on Debian...\033[0m\n"
+    debian_etcd
+elif [[ "$os" == "u" ]]; then
+    echo -e "\033[1mInstalling ETCD on Ubuntu...\033[0m\n"
+    ubuntu_etcd
+else "Your OS is something that we don't support in this script. Please create a pull request..."
+  exit 0
+fi
+
 
 sudo mkdir -p /opt/sentry/{postgres,redis,sentry}
 sudo mkdir -p /opt/nginx/certs
