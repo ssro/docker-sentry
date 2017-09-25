@@ -1,8 +1,10 @@
 # Sentry on Docker
 
-This collection of shell scripts will attempt to install [Sentry](https://sentry.io/welcome/) on [Docker](https://www.docker.com/) on a [CentOS](https://www.centos.org/) machine (VM or bare metal).
+This collection of shell scripts will attempt to install [Sentry](https://sentry.io/welcome/) on [Docker](https://www.docker.com/) on a [CentOS](https://www.centos.org/), [Ubuntu](https://www.ubuntu.com/) or [Debian](https://www.debian.org/) machine (VM or bare metal).
 
 The main script, `docker-sentry` will install `etcd`, `sentry` and `nginx` reverse proxy with SSL support. The SSL certificates will be generated using the help of  https://github.com/JrCs/docker-letsencrypt-nginx-proxy-companion
+
+
 
 Please keep in mind that in order to use SSL, you will need a DNS A, AAAA or CNAME record in your domain's zone file, otherwise SSL won't work. You can run it on port 80 but that's entirely not recommended.
 
@@ -40,13 +42,20 @@ Please refer to https://hub.docker.com/_/sentry/ and https://github.com/JrCs/doc
 - log on to your machine
 
 ```
+# CentOS users
 $ sudo yum -y install git
 $ cd $HOME; git clone https://github.com/ssro/docker-sentry.git && git clone https://github.com/ssro/scripts.git
 $ $HOME/scripts/centos-elrepo.sh
+
+# Debian/Ubuntu users
+$ sudo apt-get -y install git
+$ cd $HOME; git clone https://github.com/ssro/docker-sentry.git && git clone https://github.com/ssro/scripts.git
 ```
+
 - OS tuning
 
 ```
+# CentOS users
 $ sudo bash -c "cat <<EOF > /etc/rc.local
 #!/bin/bash
 
@@ -66,6 +75,24 @@ net.ipv4.tcp_keepalive_probes=5
 net.ipv4.tcp_slow_start_after_idle=0
 EOF"
 
+# Debian/Ubuntu users
+$ sudo bash -c "cat <<EOF > /etc/rc.local
+#!/bin/bash
+
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+EOF"
+
+$ sudo bash -c "cat <<EOF > /etc/sysctl.d/user-tuning.conf
+vm.overcommit_memory=1
+net.core.somaxconn=65535
+vm.swappiness=10
+vm.vfs_cache_pressure=50
+net.ipv4.tcp_congestion_control=htcp
+net.ipv4.tcp_keepalive_time=60
+net.ipv4.tcp_fin_timeout=10
+net.ipv4.tcp_keepalive_probes=5
+net.ipv4.tcp_slow_start_after_idle=0
+EOF"
 ```
 
 - reboot your machine
@@ -78,8 +105,10 @@ EOF"
 
 `$ $HOME/scripts/docker-install.sh`
 
-- enable overlay2 storage driver for docker on xfs FS
+- enable overlay2 storage driver for docker
+
 ```
+# CentOS users
 $ sudo mkdir /etc/docker
 $ sudo bash -c 'cat <<EOF > /etc/docker/daemon.json
 {
@@ -90,6 +119,8 @@ $ sudo bash -c 'cat <<EOF > /etc/docker/daemon.json
 }
 EOF'
 $ sudo systemctl start docker
+
+# Debian/Ubuntu users - already built into script
 ```
 
 - logout and re-login to your machine
