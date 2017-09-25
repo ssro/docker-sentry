@@ -47,8 +47,9 @@ $ sudo yum -y install git
 $ cd $HOME; git clone https://github.com/ssro/docker-sentry.git && git clone https://github.com/ssro/scripts.git
 $ $HOME/scripts/centos-elrepo.sh
 
-# Debian/Ubuntu users
-$ sudo apt-get -y install git
+# Debian/Ubuntu users - kernel is at verision 4 for Debian 9 or Ubuntu 16.04
+# We just need to install git and clone repos
+$ sudo apt-get -y update && sudo apt-get -y install git
 $ cd $HOME; git clone https://github.com/ssro/docker-sentry.git && git clone https://github.com/ssro/scripts.git
 ```
 
