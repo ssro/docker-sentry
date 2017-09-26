@@ -19,14 +19,14 @@ ubuntu_etcd() {
   sudo apt-get -y update \
     && sudo apt-get -y install etcd \
     && sudo systemctl enable etcd \
-    && sudo systemctl start etcd
+    && sudo systemctl start etcd || exit 0
 }
 
 debian_etcd() {
   wget https://github.com/coreos/etcd/releases/download/v2.3.8/etcd-v2.3.8-linux-amd64.tar.gz \
     && tar zxvf etcd-v2.3.8-linux-amd64.tar.gz && cd etcd-v2.3.8-linux-amd64 \
     && sudo bash -c 'cp etcd* /usr/bin/' && cd .. \
-    && rm -rf etcd-v2.3.8*
+    && rm -rf etcd-v2.3.8* || exit 0
 
   sudo bash -c 'cat <<EOF > /etc/systemd/system/etcd.service
   [Unit]
@@ -98,6 +98,8 @@ etcdctl set /sentry/SENTRY_EMAIL_PASSWORD super-secret
 etcdctl set /sentry/SENTRY_EMAIL_USER mailuser
 etcdctl set /sentry/SENTRY_EMAIL_PORT 587
 etcdctl set /sentry/SENTRY_EMAIL_USE_TLS True
+etcdctl set /sentry/SENTRY_REDIS_HOST redis
+etcdctl set /sentry/SENTRY_POSTGRES_HOST postgres
 etcdctl set /sentry/VIRTUAL_HOST sentry.example.com
 etcdctl set /sentry/LETSENCRYPT_HOST sentry.example.com
 etcdctl set /sentry/LETSENCRYPT_EMAIL example@example.com
@@ -128,8 +130,8 @@ etcdctl set /sentry/SENTRY_SECRET_KEY "$(docker run --rm sentry config generate-
 docker run -it --rm --network=sentry_net \
   -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
   -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
-  -e SENTRY_POSTGRES_HOST=postgres \
-  -e SENTRY_REDIS_HOST=redis \
+  -e $(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
+  -e $(etcdctl get /sentry/SENTRY_REDIS_HOST) \
   -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
   -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
   sentry upgrade
@@ -155,8 +157,8 @@ docker run -d --restart=always --network=sentry_net \
   -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
   -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
   -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
-  -e SENTRY_POSTGRES_HOST=postgres \
-  -e SENTRY_REDIS_HOST=redis \
+  -e $(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
+  -e $(etcdctl get /sentry/SENTRY_REDIS_HOST) \
   -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
   -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
   -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
@@ -173,8 +175,8 @@ docker run -d --name sentry-cron --restart=always  --network=sentry_net \
   -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
   -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
   -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
-  -e SENTRY_POSTGRES_HOST=postgres \
-  -e SENTRY_REDIS_HOST=redis \
+  -e $(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
+  -e $(etcdctl get /sentry/SENTRY_REDIS_HOST) \
   -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
   -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
   sentry run cron
@@ -191,8 +193,8 @@ docker run -d --name sentry-worker-1 --restart=always --network=sentry_net \
   -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
   -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
   -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
-  -e SENTRY_POSTGRES_HOST=postgres \
-  -e SENTRY_REDIS_HOST=redis \
+  -e $(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
+  -e $(etcdctl get /sentry/SENTRY_REDIS_HOST) \
   -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
   -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
   sentry run worker
