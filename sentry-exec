@@ -73,8 +73,8 @@ start_sentry() {
     -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
     -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
     -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
-    -e $(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
-    -e $(etcdctl get /sentry/SENTRY_REDIS_HOST) \
+    -e SENTRY_POSTGRES_HOST=$(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
+    -e SENTRY_REDIS_HOST=$(etcdctl get /sentry/SENTRY_REDIS_HOST) \
     -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
     -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
     -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
@@ -100,8 +100,8 @@ start_sentry_cron_worker() {
     -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
     -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
     -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
-    -e $(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
-    -e $(etcdctl get /sentry/SENTRY_REDIS_HOST) \
+    -e SENTRY_POSTGRES_HOST=$(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
+    -e SENTRY_REDIS_HOST=$(etcdctl get /sentry/SENTRY_REDIS_HOST) \
     -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
     -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
     sentry run cron; sleep 5
@@ -117,8 +117,8 @@ start_sentry_cron_worker() {
     -e SENTRY_EMAIL_USER=$(etcdctl get /sentry/SENTRY_EMAIL_USER) \
     -e SENTRY_EMAIL_PORT=$(etcdctl get /sentry/SENTRY_EMAIL_PORT) \
     -e SENTRY_EMAIL_USE_TLS=$(etcdctl get /sentry/SENTRY_EMAIL_USE_TLS) \
-    -e $(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
-    -e $(etcdctl get /sentry/SENTRY_REDIS_HOST) \
+    -e SENTRY_POSTGRES_HOST=$(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
+    -e SENTRY_REDIS_HOST=$(etcdctl get /sentry/SENTRY_REDIS_HOST) \
     -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
     -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
     sentry run worker
@@ -184,8 +184,8 @@ cleanup() {
   docker run -it --rm \
     -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
     -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
-    -e $(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
-    -e $(etcdctl get /sentry/SENTRY_REDIS_HOST) \
+    -e SENTRY_POSTGRES_HOST=$(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
+    -e SENTRY_REDIS_HOST=$(etcdctl get /sentry/SENTRY_REDIS_HOST) \
     sentry cleanup -q --days 60 --concurrency 4
 }
 
