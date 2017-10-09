@@ -181,12 +181,7 @@ upgrade() {
 }
 
 cleanup() {
-  docker run -it --rm \
-    -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
-    -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
-    -e SENTRY_POSTGRES_HOST=$(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
-    -e SENTRY_REDIS_HOST=$(etcdctl get /sentry/SENTRY_REDIS_HOST) \
-    sentry cleanup -q --days 60 --concurrency 4
+  docker exec -it sentry bash -c "sentry cleanup -q --days 60 --concurrency 4"
 }
 
 backup() {
