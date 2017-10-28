@@ -4,7 +4,7 @@
 
 usage() {
   echo ""
-  echo "Usage : sentry.sh start|stop|restart|status|pull|upgrade|cleanup|backup"
+  echo "Usage : sentry-exec network|start|stop|restart|status|pull|upgrade|cleanup|backup"
   echo "sentry-exec help for more detailed explanations"
   echo ""
 }
