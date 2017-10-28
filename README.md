@@ -145,7 +145,7 @@ Sleep for 3600s
 ```
 
 ### Backing up the database
-`$ ./sentry_exec backup`
+`$ ./sentry-exec backup`
 
 The sql file will be written to the container's folder `/var/lib/postgresql/data/pgdata/`
 and to the host's folder defined in the env variable `/sentry/PG_DIR`
@@ -165,7 +165,7 @@ Wait for it to finish;
 
 ### Removing old entries from the database
 
-`$ ./sentry_exec cleanup`
+`$ ./sentry-exec cleanup`
 
 This will clean all entries from all projects older than 60 days. This can be adjusted in the `sentry_exec` script.
 Also it's possible to trim down entries based on projects https://docs.sentry.io/server/cli/cleanup/
