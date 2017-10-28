@@ -12,17 +12,20 @@ usage() {
 help() {
   echo ""
   echo "Containers that this script manages are Redis, PostgreSQL and Sentry (sentry, workers, cron)"
-  echo "Detailed command arguments help: "
-  echo ""
-  echo "start:    Starts all sentry containers"
-  echo "stop:     Stops all sentry containers"
-  echo "restart:  Restarts all containers"
-  echo "status:   Shows status of containers, a.k.a. docker stats"
-  echo "pull:     Pull latest images of containers"
-  echo "upgrade:  Performs upgrade of sentry"
-  echo "cleanup:  Delete a portion of trailing data based on creation date. Defaults to 30 days"
-  echo "backup:   Backup the postgresql database"
-  echo ""
+  echo -e "Detailed command arguments help: \n"
+  echo "network:    Create the internal bridged network for container communication"
+  echo "start:      Starts all sentry containers"
+  echo "stop:       Stops all sentry containers"
+  echo "restart:    Restarts all containers"
+  echo "status:     Shows status of containers, a.k.a. docker stats"
+  echo "pull:       Pull latest images of containers"
+  echo "upgrade:    Performs upgrade of sentry"
+  echo "cleanup:    Delete a portion of trailing data based on creation date. Defaults to 30 days"
+  echo -e "backup:  Backup the postgresql database\n"
+}
+
+sentry_net() {
+  docker network create -d bridge --subnet 172.25.0.0/16 sentry_net
 }
 
 # Redis
@@ -175,6 +178,8 @@ upgrade() {
     -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
     -e SENTRY_POSTGRES_HOST=$(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
     -e SENTRY_REDIS_HOST=$(etcdctl get /sentry/SENTRY_REDIS_HOST) \
+    -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
+    -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
     sentry upgrade; sleep 5
   start_sentry
   start_sentry_cron_worker
@@ -196,6 +201,9 @@ case "$1" in
   "help")
   help
   exit 0
+  ;;
+  "network")
+  sentry_net
   ;;
   "start")
   full_start
