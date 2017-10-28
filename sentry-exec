@@ -171,10 +171,10 @@ upgrade() {
   full_stop
   start_redis
   start_pg
-  docker run -it --rm \
+  docker run -it --rm --network=sentry_net \
     -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
-    -e $(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
-    -e $(etcdctl get /sentry/SENTRY_REDIS_HOST) \
+    -e SENTRY_POSTGRES_HOST=$(etcdctl get /sentry/SENTRY_POSTGRES_HOST) \
+    -e SENTRY_REDIS_HOST=$(etcdctl get /sentry/SENTRY_REDIS_HOST) \
     sentry upgrade; sleep 5
   start_sentry
   start_sentry_cron_worker
