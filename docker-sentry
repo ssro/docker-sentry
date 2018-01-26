@@ -85,7 +85,7 @@ sudo mkdir -p /opt/sentry/{postgres,redis,sentry}
 sudo mkdir -p /opt/nginx/certs
 
 # Set environment variables for your containers in etcd
-etcdctl set /sentry/POSTGRES_PASSWORD a321443177dc6fd800011f486a08fb1e1ff45826
+etcdctl set /sentry/POSTGRES_PASSWORD pa$$word
 etcdctl set /sentry/POSTGRES_USER sentry
 etcdctl set /sentry/PGDATA /var/lib/postgresql/data/pgdata
 etcdctl set /sentry/PG_DIR /opt/sentry/postgres
@@ -100,8 +100,8 @@ etcdctl set /sentry/SENTRY_EMAIL_PORT 587
 etcdctl set /sentry/SENTRY_EMAIL_USE_TLS True
 etcdctl set /sentry/SENTRY_REDIS_HOST redis
 etcdctl set /sentry/SENTRY_POSTGRES_HOST postgres
-etcdctl set /sentry/VIRTUAL_HOST sentry.guruestate.com
-etcdctl set /sentry/LETSENCRYPT_HOST sentry.guruestate.com
+etcdctl set /sentry/VIRTUAL_HOST sentry.example.com
+etcdctl set /sentry/LETSENCRYPT_HOST sentry.example.com
 etcdctl set /sentry/LETSENCRYPT_EMAIL example@example.com
 etcdctl set /nginx/WORKDIR /opt/nginx
 
@@ -182,8 +182,9 @@ docker run -d --name sentry-cron --restart=always  --network=sentry_net \
   sentry run cron
 
 
-# Start worker (you can start as many workers as you want, just give them different names (--name))
-docker run -d --name sentry-worker-1 --restart=always --network=sentry_net \
+# Start 3 workers
+for i in 1 2 3; do
+docker run -d --name sentry-worker-${i} --restart=always --network=sentry_net \
   -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
   -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
   -e SENTRY_SINGLE_ORGANIZATION=$(etcdctl get /sentry/SENTRY_SINGLE_ORGANIZATION) \
@@ -198,6 +199,7 @@ docker run -d --name sentry-worker-1 --restart=always --network=sentry_net \
   -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
   -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
   sentry run worker
+done
 
 echo -e "Installing nginx reverse proxy with SSL support...\n"
 sleep 10
