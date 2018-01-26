@@ -109,8 +109,9 @@ start_sentry_cron_worker() {
     -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
     sentry run cron; sleep 5
 
-# Start sentry worker(s)
-  docker run -d --name sentry-worker-1 --restart=always --network=sentry_net \
+# Start 3 workers
+for i in 1 2 3; do
+  docker run -d --name sentry-worker-${i} --restart=always --network=sentry_net \
     -v $(etcdctl get /sentry/SENTRY_DIR):/var/lib/sentry/files \
     -e SENTRY_SECRET_KEY=$(etcdctl get /sentry/SENTRY_SECRET_KEY) \
     -e SENTRY_SINGLE_ORGANIZATION=$(etcdctl get /sentry/SENTRY_SINGLE_ORGANIZATION) \
@@ -125,6 +126,7 @@ start_sentry_cron_worker() {
     -e SENTRY_DB_USER=$(etcdctl get /sentry/POSTGRES_USER) \
     -e SENTRY_DB_PASSWORD=$(etcdctl get /sentry/POSTGRES_PASSWORD) \
     sentry run worker
+done
 }
 
 stop_sentry_cron_worker() {
