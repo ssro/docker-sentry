@@ -188,7 +188,7 @@ upgrade() {
 }
 
 cleanup() {
-  docker exec -it sentry bash -c "sentry cleanup -q --days 60 --concurrency 4"
+  docker exec -d sentry bash -c "sentry cleanup -q --days 30 --concurrency 4"
 }
 
 backup() {
