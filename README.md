@@ -167,5 +167,5 @@ Wait for it to finish;
 
 `$ ./sentry-exec cleanup`
 
-This will clean all entries from all projects older than 60 days. This can be adjusted in the `sentry_exec` script.
+This will clean all entries from all projects older than 30 days. This can be adjusted in the `sentry_exec` script.
 Also it's possible to trim down entries based on projects https://docs.sentry.io/server/cli/cleanup/
